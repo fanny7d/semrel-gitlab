@@ -1,5 +1,5 @@
 # 构建阶段
-FROM golang:1.22-alpine AS builder
+FROM golang:1.22 AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -13,23 +13,20 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -o semrel-gitlab
+# 构建应用，确保静态链接，明确指定 arm64 架构
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '-extldflags "-static"' -o semrel-gitlab
 
 # 运行阶段
-FROM alpine:latest
+FROM ubuntu:22.04
 
-# 安装必要的工具
-RUN apk --no-cache add ca-certificates tzdata
-
-# 设置工作目录
-WORKDIR /app
+# 安装时区数据
+RUN apt-get update && apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /app/semrel-gitlab .
-
-# 设置环境变量
-ENV TZ=Asia/Shanghai
+COPY --from=builder /app/semrel-gitlab /usr/local/bin/semrel-gitlab
 
 # 设置入口点
-ENTRYPOINT ["/app/semrel-gitlab"] 
+ENTRYPOINT ["/usr/local/bin/semrel-gitlab"]
