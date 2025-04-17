@@ -8,10 +8,8 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
-	"runtime/pprof"
 	"strings"
 
 	"github.com/blang/semver"
@@ -43,17 +41,12 @@ func (c *fakeFixChange) PreReleased() bool           { return false }
 
 func clientFromContext(c *cli.Context) (*gitlab.Client, error) {
 	token := c.GlobalString("token")
-	if len(token) == 0 {
-		return nil, errors.New("Gitlab access token missing, check GL_TOKEN")
+	if token == "" {
+		return nil, errors.New("token is required")
 	}
-	api := c.GlobalString("gl-api")
-	projectURL := c.GlobalString("ci-project-url")
-	if len(api) == 0 && len(projectURL) > 0 {
-		parsedURL, err := url.Parse(projectURL)
-		if err != nil || len(parsedURL.Host) == 0 {
-			return nil, errors.New(fmt.Sprintf("%s is not a valid project url", projectURL))
-		}
-		api = fmt.Sprintf("%s://%s/api/v4/", parsedURL.Scheme, parsedURL.Host)
+	api := c.GlobalString("api")
+	if api == "" {
+		return nil, errors.New("api is required")
 	}
 	return gitlabutil.NewClient(token, api, c.GlobalBool("skip-ssl-verify"))
 }
@@ -229,67 +222,51 @@ func releaseAPIAvailable(client *gitlab.Client) (bool, error) {
 func testAPI(c *cli.Context) error {
 	client, err := clientFromContext(c)
 	if err != nil {
-		return errors.Wrap(err, "Unable to connect")
-	}
-	check := actions.NewCheck(client)
-	err = workflow.Apply([]workflow.Action{check})
-	if err == nil {
-		fmt.Println("Connection OK!", check.Version, check.Revision)
-	}
-	ava, err := releaseAPIAvailable(client)
-	if err != nil {
 		return err
 	}
-	fmt.Println(ava)
-	return err
+	check := actions.NewCheck(client)
+	return check.Do()
 }
 
 // release add-download
 func addDownload(c *cli.Context) error {
-	tag := c.GlobalString("ci-commit-tag")
-	project := c.GlobalString("ci-project-path")
-	projectURLString := c.GlobalString("ci-project-url")
-	file := c.String("f")
-	description := c.String("d")
-
-	if len(project) == 0 {
-		return errors.New("ci-project-path is not set")
-	}
-	if len(tag) == 0 {
-		return errors.New("ci-commit-tag is not set")
-	}
-	if len(projectURLString) == 0 {
-		return errors.New("ci-project-url is not set")
-	}
-	if len(file) == 0 || len(description) == 0 {
-		return errors.New("filename and description must be specified")
-	}
-
-	projectURL, err := url.Parse(projectURLString)
-	if err != nil {
-		return errors.Wrap(err, "Unable to parse url")
-	}
-
 	client, err := clientFromContext(c)
 	if err != nil {
-		return errors.Wrap(err, "Unable to connect")
+		return err
 	}
-	relAPI, err := releaseAPIAvailable(client)
+	file := c.String("file")
+	if file == "" {
+		return errors.New("file is required")
+	}
+	tag := c.String("ci-commit-tag")
+	if tag == "" {
+		tag = os.Getenv("CI_COMMIT_TAG")
+	}
+	if tag == "" {
+		return errors.New("ci-commit-tag is required")
+	}
+	projectURL, err := url.Parse(c.GlobalString("project-url"))
 	if err != nil {
-		return errors.Wrap(err, "detect releases api")
+		return errors.Wrap(err, "parse project url")
 	}
-	getTag := actions.NewGetTag(client, project, tag)
-	upload := actions.NewUpload(client, project, projectURL, file)
+	getTag := actions.NewGetTag(client, c.GlobalString("project"), tag)
+	if err := getTag.Do(); err != nil {
+		return err
+	}
+	upload := actions.NewUpload(client, c.GlobalString("project"), projectURL, file)
+	if err := upload.Do(); err != nil {
+		return err
+	}
 	addLink := actions.NewAddLink(&actions.AddLinkParams{
 		Client:               client,
-		Project:              project,
-		LinkDescription:      description,
+		Project:              c.GlobalString("project"),
+		LinkDescription:      "",
 		MDLinkFunc:           upload.MDLinkFunc(),
-		LinkURLFunc:          upload.LinkURLFunc(),
 		TagFunc:              getTag.TagFunc(),
-		ReleasesAPIAvailable: relAPI,
+		LinkURLFunc:          upload.LinkURLFunc(),
+		ReleasesAPIAvailable: c.GlobalBool("releases-api-available"),
 	})
-	return workflow.Apply([]workflow.Action{getTag, upload, addLink})
+	return addLink.Do()
 }
 
 // release add-download-link
@@ -336,60 +313,28 @@ func addDownloadLink(c *cli.Context) error {
 // release commit-and-tag
 // release tag-and-commit
 func commitAndTagBase(c *cli.Context, reversed bool) error {
-	createTagPipeline := c.Bool("create-tag-pipeline")
-	tagPrefix := strings.TrimSpace(c.GlobalString("tag-prefix"))
-	branch := c.GlobalString("ci-commit-ref-name")
-	project := c.GlobalString("ci-project-path")
-	messageTmpl := c.GlobalString("bump-commit-tmpl")
-	refFunc := actions.NewFuncOfString(c.GlobalString("ci-commit-sha"))
-	files := c.Args()
-
-	if len(branch) == 0 {
-		return errors.New("branch is not set, check CI_COMMIT_REF_NAME")
-	}
-	if len(project) == 0 {
-		return errors.New("project is not set, check CI_PROJECT_PATH")
-	}
-	if len(c.GlobalString("ci-commit-sha")) == 0 {
-		return errors.New("commit id is not set, check CI_COMMIT_SHA")
-	}
-
-	info, err := analyzeCommits(c)
-	if err != nil {
-		return err
-	}
-	if !hasReleaseContent(info) {
-		return errors.New("no changes found in commit messages")
-	}
-	releaseNote, err := render.ReleaseNote(info)
-	if err != nil {
-		return err
-	}
-	tagID := tagPrefix + info.NextVersion.String()
-	message, err := render.BumpMessage(tagID, messageTmpl)
-	if err != nil {
-		return errors.Wrap(err, "format commit message")
-	}
-
 	client, err := clientFromContext(c)
 	if err != nil {
-		return errors.Wrap(err, "Unable to connect")
+		return err
 	}
-	relAPI, err := releaseAPIAvailable(client)
-	if err != nil {
-		return errors.Wrap(err, "check releases api")
+	tag := c.String("tag")
+	if tag == "" {
+		return errors.New("tag is required")
 	}
-	commit := actions.NewCommit(client, project, files, message, branch)
-	if !reversed {
-		refFunc = commit.RefFunc()
+	getTag := actions.NewGetTag(client, c.GlobalString("project"), tag)
+	if err := getTag.Do(); err != nil {
+		return err
 	}
-	tag := actions.NewCreateTag(client, project, refFunc, tagID, releaseNote, relAPI)
-	workflowActions := []workflow.Action{commit, tag}
-	if createTagPipeline {
-		workflowActions = append(workflowActions, actions.NewCreatePipeline(client, project, actions.NewFuncOfString(tagID)))
+	commit := actions.NewCommit(client, c.GlobalString("project"), c.String("branch"), c.String("message"))
+	if err := commit.Do(); err != nil {
+		return err
 	}
-
-	return workflow.Apply(workflowActions)
+	createTag := actions.NewCreateTag(client, c.GlobalString("project"), commit.BranchFunc(), tag, c.String("message"), c.Bool("force"))
+	if err := createTag.Do(); err != nil {
+		return err
+	}
+	createPipeline := actions.NewCreatePipeline(client, c.GlobalString("project"), commit.BranchFunc())
+	return createPipeline.Do()
 }
 
 // release tag
@@ -802,100 +747,14 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "file, f",
-					Usage: "`FILE` to add",
+					Usage: "`FILE` to upload",
 				},
 				cli.StringFlag{
-					Name:  "description, d",
-					Usage: "file `DESCRIPTION`",
+					Name:  "ci-commit-tag",
+					Usage: "`TAG` to add download to",
 				},
 			},
 		},
-		{
-			Name:      "add-download-link",
-			Usage:     "Add download link to release note",
-			UsageText: "release add-download-link [command options]",
-			Description: `Add download link to release note. Makes possible to host
-   downloads anywhere.
-     
-   Requires CI_COMMIT_TAG environment variable or --ci-commit-tag flag.`,
-			Action: addDownloadLink,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "name, n",
-					Usage: "`TEXT` on the link",
-				},
-				cli.StringFlag{
-					Name:  "url, u",
-					Usage: "`URL` of the link",
-				},
-				cli.StringFlag{
-					Name:  "description, d",
-					Usage: "`DESCRIPTION` of the download",
-				},
-			},
-		},
-		{
-			Name:  "test-git",
-			Usage: "analyze git repository",
-			Description: `Analyze unreleased commits and print release note.
-         
-   GitLab api and environment variables are not needed for this command`,
-			UsageText: "release test-git",
-			Action: func(c *cli.Context) error {
-				return inspectAndPrint(c, false, true)
-			},
-			Flags: []cli.Flag{listOtherChanges},
-		},
-		{
-			Name:      "test-api",
-			Usage:     "test connection to GitLab api",
-			UsageText: "release test-api",
-			Action:    testAPI,
-		},
-		{
-			Name:   "short-version",
-			Usage:  "print just the version number",
-			Action: shortVersion,
-			Hidden: true,
-		},
 	}
-
-	if cpuprof := os.Getenv("GO_SEMREL_GITLAB_CPUPROF"); cpuprof != "" {
-		f, err := os.Create(cpuprof)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
-	sgsDeprecation()
-
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func sgsDeprecation() {
-	gsgVars := []string{"PATCH_COMMIT_TYPES", "MINOR_COMMIT_TYPES", "INITIAL_DEVELOPMENT", "BUMP_PATCH"}
-	sorry := false
-	for _, v := range gsgVars {
-		gsgKey := fmt.Sprintf("GSG_%s", v)
-		sgsKey := fmt.Sprintf("SGS_%s", v)
-		gsg := os.Getenv(gsgKey)
-		sgs := os.Getenv(sgsKey)
-		if len(gsg) == 0 && len(sgs) > 0 {
-			if !sorry {
-				fmt.Fprintln(os.Stderr, "-- WARNING! --")
-			}
-			sorry = true
-			fmt.Fprintf(os.Stderr, "%s is deprecated and should be changed to %s\n", sgsKey, gsgKey)
-			os.Setenv(gsgKey, sgs)
-		}
-	}
-	if sorry {
-		fmt.Fprintln(os.Stderr, "\nSGS_ prefix was a typo, and support for it will be removed in future.")
-		fmt.Fprintln(os.Stderr, "Sorry for the inconvenience!\n--------------")
-	}
+	app.Run(os.Args)
 }

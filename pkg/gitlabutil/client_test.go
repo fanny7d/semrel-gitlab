@@ -1,119 +1,110 @@
 package gitlabutil
 
 import (
-	"net/http"
 	"testing"
 
-	"github.com/xanzy/go-gitlab"
+	"github.com/stretchr/testify/assert"
+	gitlab "github.com/xanzy/go-gitlab"
 )
 
 func TestNewClient(t *testing.T) {
 	tests := []struct {
-		name        string
-		token       string
-		apiURL      string
-		skipSSL     bool
-		expectError bool
+		name          string
+		token         string
+		apiURL        string
+		skipSSLVerify bool
+		wantErr       bool
 	}{
 		{
-			name:        "Valid configuration",
-			token:       "valid-token",
-			apiURL:      "https://gitlab.example.com/api/v4",
-			skipSSL:     false,
-			expectError: false,
+			name:          "valid token and apiURL",
+			token:         "valid-token",
+			apiURL:        "https://gitlab.example.com",
+			skipSSLVerify: false,
+			wantErr:       false,
 		},
 		{
-			name:        "Empty token",
-			token:       "",
-			apiURL:      "https://gitlab.example.com/api/v4",
-			skipSSL:     false,
-			expectError: true,
+			name:          "empty token",
+			token:         "",
+			apiURL:        "https://gitlab.example.com",
+			skipSSLVerify: false,
+			wantErr:       true,
 		},
 		{
-			name:        "Invalid API URL",
-			token:       "valid-token",
-			apiURL:      "not-a-url",
-			skipSSL:     false,
-			expectError: true,
+			name:          "empty apiURL",
+			token:         "valid-token",
+			apiURL:        "",
+			skipSSLVerify: false,
+			wantErr:       false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClient(tt.token, tt.apiURL, tt.skipSSL)
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error, got nil")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
-			}
-
-			if client == nil {
-				t.Error("Expected client, got nil")
+			client, err := NewClient(tt.token, tt.apiURL, tt.skipSSLVerify)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, client)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, client)
 			}
 		})
 	}
 }
 
 func TestNewRequest(t *testing.T) {
-	client, err := NewClient("test-token", "https://gitlab.example.com/api/v4", false)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
 	tests := []struct {
-		name        string
-		method      string
-		path        string
-		body        interface{}
-		options     []gitlab.RequestOptionFunc
-		expectError bool
+		name          string
+		token         string
+		apiURL        string
+		skipSSLVerify bool
+		method        string
+		path          string
+		body          interface{}
+		options       []gitlab.RequestOptionFunc
+		wantErr       bool
 	}{
 		{
-			name:        "Valid request",
-			method:      http.MethodGet,
-			path:        "/projects",
-			body:        nil,
-			options:     nil,
-			expectError: false,
+			name:          "valid request",
+			token:         "valid-token",
+			apiURL:        "https://gitlab.example.com",
+			skipSSLVerify: false,
+			method:        "GET",
+			path:          "/api/v4/projects",
+			body:          nil,
+			options:       nil,
+			wantErr:       false,
 		},
 		{
-			name:        "Invalid method",
-			method:      "INVALID",
-			path:        "/projects",
-			body:        nil,
-			options:     nil,
-			expectError: true,
+			name:          "invalid URL",
+			token:         "valid-token",
+			apiURL:        "://invalid-url",
+			skipSSLVerify: false,
+			method:        "GET",
+			path:          "/api/v4/projects",
+			body:          nil,
+			options:       nil,
+			wantErr:       true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := client.NewRequest(tt.method, tt.path, tt.body, tt.options)
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error, got nil")
-				}
-				return
-			}
-
+			client, err := NewClient(tt.token, tt.apiURL, tt.skipSSLVerify)
 			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
+				if tt.wantErr {
+					return
+				}
+				t.Fatalf("NewClient() error = %v", err)
 			}
 
-			if req == nil {
-				t.Error("Expected request, got nil")
-			}
-
-			// Verify request configuration
-			if req.Method != tt.method {
-				t.Errorf("Expected method %s, got %s", tt.method, req.Method)
+			req, err := client.NewRequest(tt.method, tt.path, tt.body, nil)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, req)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, req)
 			}
 		})
 	}

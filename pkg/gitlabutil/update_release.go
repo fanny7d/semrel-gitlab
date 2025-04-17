@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	"github.com/pkg/errors"
-	"github.com/xanzy/go-gitlab"
+	gitlab "github.com/xanzy/go-gitlab"
 )
 
 // UpdateReleaseOptions GitLab 发布更新 API 的选项
@@ -36,7 +36,7 @@ func UpdateTagDescription(client *gitlab.Client, project string, tagID string, d
 	}
 	updateResp := UpdateReleaseResponse{}
 	u := fmt.Sprintf("projects/%s/repository/tags/%s/release", url.QueryEscape(project), tagID)
-	req, err := client.NewRequest("PUT", u, updateOptions, []gitlab.RequestOptionFunc{})
+	req, err := client.NewRequest("PUT", u, updateOptions, nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "add-download make request")
 	}

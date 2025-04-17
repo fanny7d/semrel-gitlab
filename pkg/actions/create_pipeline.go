@@ -2,67 +2,48 @@ package actions
 
 import (
 	"fmt"
-	"strings"
+	"net/url"
 
-	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
+	"github.com/pkg/errors"
 	gitlab "github.com/xanzy/go-gitlab"
 )
 
-// CreatePipeline ..
-type CreatePipeline struct {
-	client   *gitlab.Client
-	project  string
-	refFunc  func() string
-	pipeline *gitlab.Pipeline
+// CreatePipelineOptions GitLab 创建流水线 API 的选项
+// 参考: https://docs.gitlab.com/ee/api/pipelines.html#create-a-new-pipeline
+type CreatePipelineOptions struct {
+	Ref       string            `json:"ref"`
+	Variables map[string]string `json:"variables,omitempty"`
 }
 
-// Do implements Action for CreatePipeline
-func (action *CreatePipeline) Do() *workflow.ActionError {
-	if action.pipeline != nil {
-		return nil
-	}
+// CreatePipelineResponse GitLab 创建流水线 API 的响应
+// 参考: https://docs.gitlab.com/ee/api/pipelines.html#create-a-new-pipeline
+type CreatePipelineResponse struct {
+	ID        int    `json:"id"`
+	Status    string `json:"status"`
+	Ref       string `json:"ref"`
+	Sha       string `json:"sha"`
+	WebURL    string `json:"web_url"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
 
-	ref := action.refFunc()
-	pipeline, _, err := action.client.Pipelines.CreatePipeline(action.project, &gitlab.CreatePipelineOptions{
-		Ref: &ref,
-	})
+// CreatePipelineAPI 创建流水线
+// client: GitLab 客户端
+// project: 项目路径
+// options: 流水线选项
+func CreatePipelineAPI(client *gitlab.Client, project string, options *CreatePipelineOptions) (*CreatePipelineResponse, *gitlab.Response, error) {
+	u := fmt.Sprintf("projects/%s/pipeline", url.QueryEscape(project))
+
+	req, err := client.NewRequest("POST", u, options, nil)
 	if err != nil {
-		// retry if reference was not found
-		if strings.Contains(err.Error(), "Reference not found") {
-			return workflow.NewActionError(err, true)
-		}
-		// continue normally if pipeline creation fails because there's nothing to do
-		if !strings.Contains(err.Error(), "No stages / jobs for this pipeline.") {
-			return workflow.NewActionError(err, false)
-		}
+		return nil, nil, errors.Wrap(err, "create pipeline make request")
 	}
-	action.pipeline = pipeline
 
-	return nil
-}
-
-// Undo implements Action for CreatePipeline
-func (action *CreatePipeline) Undo() error {
-	if action.pipeline == nil {
-		return nil
-	}
-	fmt.Printf(`
-MANUAL ACTION REQUIRED!
-Attempting to cancel pipeline %d.
-Jobs may have been executed, already.`, action.pipeline.ID)
-	_, _, err := action.client.Pipelines.CancelPipelineBuild(action.project, action.pipeline.ID)
+	pipeline := new(CreatePipelineResponse)
+	resp, err := client.Do(req, pipeline)
 	if err != nil {
-		return err
+		return pipeline, resp, errors.Wrap(err, "create pipeline execute request")
 	}
-	action.pipeline = nil
-	return nil
-}
 
-// NewCreatePipeline ..
-func NewCreatePipeline(client *gitlab.Client, project string, refFunc func() string) *CreatePipeline {
-	return &CreatePipeline{
-		client:  client,
-		project: project,
-		refFunc: refFunc,
-	}
+	return pipeline, resp, nil
 }

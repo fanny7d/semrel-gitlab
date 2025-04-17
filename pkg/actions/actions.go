@@ -1,6 +1,9 @@
 package actions
 
 import (
+	"fmt"
+	"net/url"
+
 	"github.com/fanny7d/semrel-gitlab/pkg/gitlabutil"
 	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	"github.com/pkg/errors"
@@ -15,6 +18,42 @@ func NewFuncOfString(s string) func() string {
 	return func() string {
 		return s
 	}
+}
+
+// CreateTagOptions GitLab 创建标签 API 的选项
+// 参考: https://docs.gitlab.com/ee/api/tags.html#create-a-new-tag
+type CreateTagOptions struct {
+	TagName     string `json:"tag_name"`
+	Ref         string `json:"ref"`
+	Message     string `json:"message,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// CreateTagResponse GitLab 创建标签 API 的响应
+// 参考: https://docs.gitlab.com/ee/api/tags.html#create-a-new-tag
+type CreateTagResponse struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
+	Target  string `json:"target"`
+	Commit  struct {
+		ID             string   `json:"id"`
+		ShortID        string   `json:"short_id"`
+		Title          string   `json:"title"`
+		CreatedAt      string   `json:"created_at"`
+		ParentIDs      []string `json:"parent_ids"`
+		Message        string   `json:"message"`
+		AuthorName     string   `json:"author_name"`
+		AuthorEmail    string   `json:"author_email"`
+		AuthoredDate   string   `json:"authored_date"`
+		CommitterName  string   `json:"committer_name"`
+		CommitterEmail string   `json:"committer_email"`
+		CommittedDate  string   `json:"committed_date"`
+	} `json:"commit"`
+	Release struct {
+		TagName     string `json:"tag_name"`
+		Description string `json:"description"`
+	} `json:"release"`
+	Protected bool `json:"protected"`
 }
 
 // CreateTag 表示创建 GitLab 标签的操作
@@ -75,6 +114,39 @@ func NewCreateTag(client *gitlab.Client, project string, branch func() string, t
 		message: message,
 		force:   force,
 	}
+}
+
+// GetTagOptions GitLab 获取标签 API 的选项
+// 参考: https://docs.gitlab.com/ee/api/tags.html#get-a-single-tag
+type GetTagOptions struct {
+	TagName string `json:"tag_name"`
+}
+
+// GetTagResponse GitLab 获取标签 API 的响应
+// 参考: https://docs.gitlab.com/ee/api/tags.html#get-a-single-tag
+type GetTagResponse struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
+	Target  string `json:"target"`
+	Commit  struct {
+		ID             string   `json:"id"`
+		ShortID        string   `json:"short_id"`
+		Title          string   `json:"title"`
+		CreatedAt      string   `json:"created_at"`
+		ParentIDs      []string `json:"parent_ids"`
+		Message        string   `json:"message"`
+		AuthorName     string   `json:"author_name"`
+		AuthorEmail    string   `json:"author_email"`
+		AuthoredDate   string   `json:"authored_date"`
+		CommitterName  string   `json:"committer_name"`
+		CommitterEmail string   `json:"committer_email"`
+		CommittedDate  string   `json:"committed_date"`
+	} `json:"commit"`
+	Release struct {
+		TagName     string `json:"tag_name"`
+		Description string `json:"description"`
+	} `json:"release"`
+	Protected bool `json:"protected"`
 }
 
 // GetTag 表示获取 GitLab 标签的操作
@@ -182,4 +254,46 @@ func NewAddLink(params *AddLinkParams) *AddLink {
 		linkURLFunc:          params.LinkURLFunc,
 		releasesAPIAvailable: params.ReleasesAPIAvailable,
 	}
+}
+
+// AddReleaseLinkOptions GitLab 添加发布链接 API 的选项
+// 参考: https://docs.gitlab.com/ee/api/releases/links.html#create-a-link
+type AddReleaseLinkOptions struct {
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	FilePath string `json:"filepath,omitempty"`
+	LinkType string `json:"link_type,omitempty"`
+}
+
+// AddReleaseLinkResponse GitLab 添加发布链接 API 的响应
+// 参考: https://docs.gitlab.com/ee/api/releases/links.html#create-a-link
+type AddReleaseLinkResponse struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	DirectURL string `json:"direct_asset_url"`
+	External  bool   `json:"external"`
+	LinkType  string `json:"link_type"`
+}
+
+// AddReleaseLink 添加发布链接
+// client: GitLab 客户端
+// project: 项目路径
+// tagName: 标签名称
+// options: 链接选项
+func AddReleaseLink(client *gitlab.Client, project string, tagName string, options *AddReleaseLinkOptions) (*AddReleaseLinkResponse, *gitlab.Response, error) {
+	u := fmt.Sprintf("projects/%s/releases/%s/assets/links", url.QueryEscape(project), tagName)
+
+	req, err := client.NewRequest("POST", u, options, nil)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "add release link make request")
+	}
+
+	link := new(AddReleaseLinkResponse)
+	resp, err := client.Do(req, link)
+	if err != nil {
+		return link, resp, errors.Wrap(err, "add release link execute request")
+	}
+
+	return link, resp, nil
 }

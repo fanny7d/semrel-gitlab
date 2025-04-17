@@ -2,6 +2,7 @@ package actions
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -10,6 +11,21 @@ import (
 	"github.com/pkg/errors"
 	gitlab "github.com/xanzy/go-gitlab"
 )
+
+// UploadFileOptions GitLab 上传文件 API 的选项
+// 参考: https://docs.gitlab.com/ee/api/projects.html#upload-a-file
+type UploadFileOptions struct {
+	File     io.Reader `json:"file"`
+	FileName string    `json:"filename"`
+}
+
+// UploadFileResponse GitLab 上传文件 API 的响应
+// 参考: https://docs.gitlab.com/ee/api/projects.html#upload-a-file
+type UploadFileResponse struct {
+	Alt      string `json:"alt"`
+	URL      string `json:"url"`
+	Markdown string `json:"markdown"`
+}
 
 // Upload 表示 GitLab 文件上传操作
 type Upload struct {
@@ -91,4 +107,39 @@ func NewUpload(client *gitlab.Client, project string, projectURL *url.URL, file 
 		projectURL: projectURL,
 		file:       file,
 	}
+}
+
+// UploadFile 上传文件
+// client: GitLab 客户端
+// project: 项目路径
+// options: 上传选项
+func UploadFile(client *gitlab.Client, project string, options *UploadFileOptions) (*UploadFileResponse, *gitlab.Response, error) {
+	u := fmt.Sprintf("projects/%s/uploads", url.QueryEscape(project))
+
+	req, err := client.NewRequest("POST", u, options, nil)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "upload file make request")
+	}
+
+	upload := new(UploadFileResponse)
+	resp, err := client.Do(req, upload)
+	if err != nil {
+		return upload, resp, errors.Wrap(err, "upload file execute request")
+	}
+
+	return upload, resp, nil
+}
+
+// GenerateFileLink 生成文件链接
+// project: 项目路径
+// filePath: 文件路径
+func GenerateFileLink(project string, filePath string) string {
+	return fmt.Sprintf("/%s/-/blob/master/%s", project, filePath)
+}
+
+// GenerateMarkdownLink 生成 Markdown 格式链接
+// text: 链接文本
+// url: 链接地址
+func GenerateMarkdownLink(text string, url string) string {
+	return fmt.Sprintf("[%s](%s)", text, url)
 }
