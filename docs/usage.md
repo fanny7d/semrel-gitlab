@@ -159,28 +159,4 @@ release:
     - semrel-gitlab release
   only:
     - master
-```
-
-### GitHub Actions 示例
-
-```yaml
-name: Release
-on:
-  push:
-    branches: [ master ]
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.22'
-      - name: Release
-        env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-        run: |
-          go install github.com/fanny7d/semrel-gitlab@latest
-          semrel-gitlab release
 ``` 
