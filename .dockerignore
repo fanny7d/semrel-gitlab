@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test files
+*_test.go
+testdata/
+
+# Documentation
+*.md
+!README.md
+LICENSE
+
+# Vendor
+vendor/
+
+# Misc
+.DS_Store
+*.log
+*.swp
+*.swo 
