@@ -1,35 +1,97 @@
 package workflow
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
-type simple struct {
-	done bool
+// TestAction 是一个测试用的 Action 实现
+type TestAction struct {
+	doError    *ActionError
+	undoError  error
+	doCalled   bool
+	undoCalled bool
 }
 
-func (a *simple) Do() *ActionError {
-	a.done = true
-	return nil
+func (a *TestAction) Do() *ActionError {
+	a.doCalled = true
+	return a.doError
 }
 
-func (a *simple) Undo() error {
-	a.done = false
-	return nil
+func (a *TestAction) Undo() error {
+	a.undoCalled = true
+	return a.undoError
 }
 
-func TestApplyAndRollback(t *testing.T) {
-	var simples []*simple
-	var actions []Action
-	for _, a := range make([]simple, 5) {
-		actions = append(actions, &a)
-		simples = append(simples, &a)
+func TestApply_Success(t *testing.T) {
+	action := &TestAction{}
+	err := Apply([]Action{action})
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
 	}
-	aErr := Apply(actions)
-	if aErr != nil {
-		t.Fatal(aErr)
+	if !action.doCalled {
+		t.Error("Expected Do to be called")
 	}
-	for _, a := range simples {
-		if !a.done {
-			t.Error("Action not applied")
-		}
+	if action.undoCalled {
+		t.Error("Expected Undo not to be called")
+	}
+}
+
+func TestApply_Error(t *testing.T) {
+	expectedErr := errors.New("test error")
+	action := &TestAction{
+		doError: NewActionError(expectedErr, false),
+	}
+	err := Apply([]Action{action})
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	if !action.doCalled {
+		t.Error("Expected Do to be called")
+	}
+	if !action.undoCalled {
+		t.Error("Expected Undo to be called")
+	}
+}
+
+func TestApply_RetryableError(t *testing.T) {
+	expectedErr := errors.New("test error")
+	action := &TestAction{
+		doError: NewActionError(expectedErr, true),
+	}
+	err := Apply([]Action{action})
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	if !action.doCalled {
+		t.Error("Expected Do to be called")
+	}
+	if action.undoCalled {
+		t.Error("Expected Undo not to be called")
+	}
+}
+
+func TestRollback_Success(t *testing.T) {
+	action := &TestAction{}
+	err := rollback([]Action{action})
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if !action.undoCalled {
+		t.Error("Expected Undo to be called")
+	}
+}
+
+func TestRollback_Error(t *testing.T) {
+	expectedErr := errors.New("test error")
+	action := &TestAction{
+		undoError: expectedErr,
+	}
+	err := rollback([]Action{action})
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	if !action.undoCalled {
+		t.Error("Expected Undo to be called")
 	}
 }

@@ -12,7 +12,7 @@ variables:
 test:
   stage: build
   services:
-  - name: registry.gitlab.com/juhani/go-semrel-gitlab/gitlab-test
+  - name: ghcr.io/fanny7d/semrel-gitlab/gitlab-test
     alias: gitlab
   script:
   - ./wait_for_gitlab.sh
@@ -23,7 +23,7 @@ test:
 
 version:
   stage: version
-  image: registry.gitlab.com/juhani/go-semrel-gitlab:v0.20.4
+  image: ghcr.io/fanny7d/semrel-gitlab:v0.20.4
   script:
     - release next-version --allow-current > .next-version
   artifacts:
@@ -164,7 +164,7 @@ pages:
   - sed -i 's/GA_ID/'"$GA"'/' site3/config.toml
   - ./gendoc
   - cat CHANGELOG.md >> site3/content/CHANGELOG.md
-  - sed -i.bak 's|(\([0-9a-f]\{8\}\)\([0-9a-f]\{32\}\))|<a href="https://gitlab.com/juhani/go-semrel-gitlab/commit/\1\2">(\1)</a>|g' site3/content/CHANGELOG.md
+  - sed -i.bak 's|(\([0-9a-f]\{8\}\)\([0-9a-f]\{32\}\))|<a href="https://github.com/fanny7d/semrel-gitlab/commit/\1\2">(\1)</a>|g' site3/content/CHANGELOG.md
   - hugo -s site3 -d ../public
   artifacts:
     paths:

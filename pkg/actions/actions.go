@@ -1,11 +1,21 @@
 package actions
 
 import (
+	"github.com/fanny7d/semrel-gitlab/pkg/gitlabutil"
+	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	"github.com/pkg/errors"
 	gitlab "github.com/xanzy/go-gitlab"
-	"gitlab.com/fanny7d/semrel-gitlab/pkg/gitlabutil"
-	"gitlab.com/fanny7d/semrel-gitlab/pkg/workflow"
 )
+
+// FuncOfString 是一个返回字符串的函数类型
+type FuncOfString func() string
+
+// NewFuncOfString 创建一个返回固定字符串的函数
+func NewFuncOfString(s string) func() string {
+	return func() string {
+		return s
+	}
+}
 
 // CreateTag 表示创建 GitLab 标签的操作
 type CreateTag struct {
@@ -27,9 +37,6 @@ func (action *CreateTag) Do() *workflow.ActionError {
 		TagName: &action.tag,
 		Ref:     gitlab.String(action.branch()),
 		Message: &action.message,
-	}
-	if action.force {
-		options.Force = &action.force
 	}
 	tag, _, err := action.client.Tags.CreateTag(action.project, options)
 	if err != nil {
@@ -117,20 +124,24 @@ func NewGetTag(client *gitlab.Client, project string, tag string) *GetTag {
 
 // AddLinkParams 表示添加链接操作的参数
 type AddLinkParams struct {
-	Client          *gitlab.Client
-	Project         string
-	LinkDescription string
-	MDLinkFunc      func() string
-	TagFunc         func() string
+	Client               *gitlab.Client
+	Project              string
+	LinkDescription      string
+	MDLinkFunc           func() string
+	TagFunc              func() string
+	LinkURLFunc          func() string
+	ReleasesAPIAvailable bool
 }
 
 // AddLink 表示添加 GitLab 标签链接的操作
 type AddLink struct {
-	client          *gitlab.Client
-	project         string
-	linkDescription string
-	mdLinkFunc      func() string
-	tagFunc         func() string
+	client               *gitlab.Client
+	project              string
+	linkDescription      string
+	mdLinkFunc           func() string
+	tagFunc              func() string
+	linkURLFunc          func() string
+	releasesAPIAvailable bool
 }
 
 // Do 实现 Action 接口，执行添加链接的操作
@@ -163,10 +174,12 @@ func (action *AddLink) Undo() error {
 // NewAddLink 创建一个新的添加链接操作
 func NewAddLink(params *AddLinkParams) *AddLink {
 	return &AddLink{
-		client:          params.Client,
-		project:         params.Project,
-		linkDescription: params.LinkDescription,
-		mdLinkFunc:      params.MDLinkFunc,
-		tagFunc:         params.TagFunc,
+		client:               params.Client,
+		project:              params.Project,
+		linkDescription:      params.LinkDescription,
+		mdLinkFunc:           params.MDLinkFunc,
+		tagFunc:              params.TagFunc,
+		linkURLFunc:          params.LinkURLFunc,
+		releasesAPIAvailable: params.ReleasesAPIAvailable,
 	}
 }

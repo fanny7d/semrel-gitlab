@@ -3,9 +3,9 @@ package actions
 import (
 	"io/ioutil"
 
+	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
-	"gitlab.com/fanny7d/semrel-gitlab/pkg/workflow"
 	git "gopkg.in/src-d/go-git.v4"
 )
 

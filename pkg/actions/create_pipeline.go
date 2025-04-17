@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	gitlab "github.com/xanzy/go-gitlab"
-	"gitlab.com/juhani/go-semrel-gitlab/pkg/workflow"
 )
 
 // CreatePipeline ..

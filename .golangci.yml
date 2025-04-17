@@ -1,0 +1,54 @@
+version: 1.0
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - golint
+    - govet
+    - gosimple
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - misspell
+    - gocritic
+    - gosec
+    - revive
+
+linters-settings:
+  golint:
+    min-confidence: 0
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - wrapperFunc
+      - dupImport
+  gosec:
+    excludes:
+      - G104
+      - G107
+      - G204
+      - G304
+      - G402
+      - G404
+      - G505
+
+run:
+  timeout: 5m
+  tests: true
+
+issues:
+  exclude-use-default: false
+  exclude:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+    - path: vendor/
+      linters:
+        - all
+  max-per-linter: 0
+  max-same-issues: 0 

@@ -15,16 +15,16 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/fanny7d/semrel-gitlab/pkg/actions"
+	"github.com/fanny7d/semrel-gitlab/pkg/gitlabutil"
+	"github.com/fanny7d/semrel-gitlab/pkg/render"
+	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	"github.com/juranki/go-semrel/angularcommit"
 	"github.com/juranki/go-semrel/inspectgit"
 	"github.com/juranki/go-semrel/semrel"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 	gitlab "github.com/xanzy/go-gitlab"
-	"gitlab.com/juhani/go-semrel-gitlab/pkg/actions"
-	"gitlab.com/juhani/go-semrel-gitlab/pkg/gitlabutil"
-	"gitlab.com/juhani/go-semrel-gitlab/pkg/render"
-	"gitlab.com/juhani/go-semrel-gitlab/pkg/workflow"
 )
 
 var (
@@ -341,7 +341,7 @@ func commitAndTagBase(c *cli.Context, reversed bool) error {
 	branch := c.GlobalString("ci-commit-ref-name")
 	project := c.GlobalString("ci-project-path")
 	messageTmpl := c.GlobalString("bump-commit-tmpl")
-	refFunc := actions.FuncOfString(c.GlobalString("ci-commit-sha"))
+	refFunc := actions.NewFuncOfString(c.GlobalString("ci-commit-sha"))
 	files := c.Args()
 
 	if len(branch) == 0 {
@@ -386,7 +386,7 @@ func commitAndTagBase(c *cli.Context, reversed bool) error {
 	tag := actions.NewCreateTag(client, project, refFunc, tagID, releaseNote, relAPI)
 	workflowActions := []workflow.Action{commit, tag}
 	if createTagPipeline {
-		workflowActions = append(workflowActions, actions.NewCreatePipeline(client, project, actions.FuncOfString(tagID)))
+		workflowActions = append(workflowActions, actions.NewCreatePipeline(client, project, actions.NewFuncOfString(tagID)))
 	}
 
 	return workflow.Apply(workflowActions)
@@ -429,7 +429,7 @@ func tag(c *cli.Context) error {
 	createTag := actions.NewCreateTag(
 		client,
 		project,
-		actions.FuncOfString(sha),
+		actions.NewFuncOfString(sha),
 		tagPrefix+info.NextVersion.String(),
 		releaseNote,
 		relAPI)

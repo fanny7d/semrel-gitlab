@@ -72,8 +72,8 @@ func Apply(actions []Action) error {
 			fmt.Println(`
 Not trying to continue after this kind of error.
 If you think recovery should be attempted, please create an issue
-at https://gitlab.com/juhani/go-semrel-gitlab/issues/new
-or by email incoming+juhani/go-semrel-gitlab@incoming.gitlab.com`)
+at https://github.com/fanny7d/semrel-gitlab/issues/new
+or by email to the project maintainers.`)
 			rollbackErr := rollback(actions)
 			if rollbackErr != nil {
 				fmt.Println(rollbackErr.Error())
@@ -85,7 +85,8 @@ or by email incoming+juhani/go-semrel-gitlab@incoming.gitlab.com`)
 }
 
 // rollback tries to Undo all actions.
-//  list of errors is returned
+//
+//	list of errors is returned
 func rollback(actions []Action) error {
 	errorCount := 0
 	if len(actions) == 0 {

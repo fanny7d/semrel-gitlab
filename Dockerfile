@@ -1,30 +1,35 @@
-FROM golang:1.21-alpine AS builder
+# 构建阶段
+FROM golang:1.22-alpine AS builder
 
+# 设置工作目录
 WORKDIR /app
 
-# Install git and build dependencies
-RUN apk add --no-cache git
-
-# Copy go mod files
+# 复制 go.mod 和 go.sum
 COPY go.mod go.sum ./
 
-# Download dependencies
+# 下载依赖
 RUN go mod download
 
-# Copy source code
+# 复制源代码
 COPY . .
 
-# Build the application
-ARG VERSION=DEV
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-X main.version=${VERSION}" -o release .
+# 构建应用
+RUN CGO_ENABLED=0 GOOS=linux go build -o semrel-gitlab
 
-# Final stage
-FROM alpine:3.21.3
+# 运行阶段
+FROM alpine:latest
 
+# 安装必要的工具
+RUN apk --no-cache add ca-certificates tzdata
+
+# 设置工作目录
 WORKDIR /app
 
-# Copy the binary from builder
-COPY --from=builder /app/release .
+# 从构建阶段复制二进制文件
+COPY --from=builder /app/semrel-gitlab .
 
-# Run the binary
-ENTRYPOINT ["./release"] 
+# 设置环境变量
+ENV TZ=Asia/Shanghai
+
+# 设置入口点
+ENTRYPOINT ["/app/semrel-gitlab"] 

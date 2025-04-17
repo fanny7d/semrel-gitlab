@@ -1,29 +1,17 @@
 # semrel-gitlab
 
-这是一个用于 GitLab 的语义化发布工具，基于 [go-semrel](https://github.com/go-semrel/semrel) 开发。
+semrel-gitlab 是一个用于自动化 GitLab 发布流程的工具。它可以帮助你：
 
-## 功能特点
-
-- 支持语义化版本控制
-- 自动生成变更日志
-- 支持 GitLab 标签管理
-- 支持文件上传和链接生成
-- 支持提交操作管理
-- 专为 GitLab CI 流水线设计
-- 提供 Docker 镜像和单文件二进制，易于集成到流水线中
-
-## 主要功能
-
-- 根据提交信息自动确定下一个版本号
-- 创建/更新变更日志
-- 创建带发布说明的标签
-- 为发布说明附加文件
-- 提交版本更新（如 `package.json`、`pom.xml`、`CHANGELOG.md` 等）
+- 自动创建和管理 GitLab 标签
+- 上传发布文件
+- 生成发布说明
+- 管理发布链接
+- 自动化发布流程
 
 ## 安装
 
 ```bash
-go get gitlab.com/fanny7d/semrel-gitlab
+go get github.com/fanny7d/semrel-gitlab
 ```
 
 ## 使用方法
@@ -64,6 +52,44 @@ semrel-gitlab -token $GITLAB_TOKEN -project group/project -branch master -force 
 semrel-gitlab -token $GITLAB_TOKEN -project group/project -branch master -force true -message "Release v1.0.0"
 ```
 
+## API 文档
+
+### 核心功能
+
+#### 标签管理
+
+- `CreateTag`: 创建新的 GitLab 标签
+- `GetTag`: 获取现有的 GitLab 标签
+- `UpdateTagDescription`: 更新标签描述
+
+#### 文件操作
+
+- `UploadFile`: 上传文件到 GitLab
+- `GenerateFileLink`: 生成文件链接
+- `GenerateMarkdownLink`: 生成 Markdown 格式链接
+
+#### 发布管理
+
+- `CreateRelease`: 创建新的发布
+- `UpdateRelease`: 更新现有发布
+- `AddReleaseLink`: 添加发布链接
+
+### 工作流
+
+#### 基本工作流
+
+1. 分析提交信息，确定版本号
+2. 创建标签
+3. 上传文件（如果需要）
+4. 添加链接（如果需要）
+5. 生成发布说明
+
+#### 错误处理
+
+- 所有操作都是幂等的
+- 支持自动重试（对于 502 错误）
+- 支持回滚操作
+
 ## 开发指南
 
 ### 项目结构
@@ -75,6 +101,8 @@ semrel-gitlab -token $GITLAB_TOKEN -project group/project -branch master -force 
 - `pkg/gitlabutil/`: GitLab 工具函数
   - `client.go`: GitLab 客户端相关
   - `update_release.go`: 发布更新相关
+- `pkg/workflow/`: 工作流管理
+  - `workflow.go`: 工作流核心逻辑
 
 ### 主要功能模块
 
@@ -93,14 +121,35 @@ semrel-gitlab -token $GITLAB_TOKEN -project group/project -branch master -force 
    - 文件状态映射
    - 提交操作生成
 
-## 更多信息
+## 最佳实践
 
-- [使用指南和命令参考](https://fanny7d.gitlab.io/semrel-gitlab)
+1. 版本控制
+   - 使用语义化版本控制
+   - 遵循 Git 提交规范
+   - 使用标签管理发布
 
-## 待办事项
+2. 错误处理
+   - 使用 Go 的错误处理机制
+   - 提供详细的错误信息
+   - 支持自动重试
 
-- 完善文档
-- 可配置的发布说明
+3. 代码组织
+   - 使用清晰的包结构
+   - 遵循 Go 的命名规范
+   - 提供完整的文档
+
+4. 测试
+   - 编写单元测试
+   - 使用测试覆盖率工具
+   - 进行持续集成
+
+## 贡献指南
+
+1. Fork 项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
 
 ## 许可证
 

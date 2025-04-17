@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 
+	"github.com/fanny7d/semrel-gitlab/pkg/workflow"
 	"github.com/pkg/errors"
 	gitlab "github.com/xanzy/go-gitlab"
-	"gitlab.com/fanny7d/semrel-gitlab/pkg/workflow"
 )
 
 // Upload 表示 GitLab 文件上传操作
@@ -35,8 +36,7 @@ func (action *Upload) Do() *workflow.ActionError {
 	projectFile, resp, err := action.client.Projects.UploadFile(
 		action.project,
 		file,
-		action.file,
-		nil,
+		filepath.Base(action.file),
 	)
 	if err != nil {
 		retry := false
@@ -49,9 +49,8 @@ func (action *Upload) Do() *workflow.ActionError {
 
 	action.fullprojectFileURL, err = url.Parse(action.projectURL.String() + action.projectFile.URL)
 	if err != nil {
-		return workflow.NewActionError(errors.Wrap(err, "parse full upload url"), false)
+		return workflow.NewActionError(errors.Wrap(err, "parse url"), false)
 	}
-
 	return nil
 }
 
